@@ -28,7 +28,7 @@ const servers = {
 };
 
 // Global State
-const pc = new RTCPeerConnection(servers);
+let pc = null;
 let localStream = null;
 let remoteStream = null;
 
@@ -41,11 +41,17 @@ const answerButton = document.getElementById('answerButton');
 const remoteVideo = document.getElementById('remoteVideo');
 const hangupButton = document.getElementById('hangupButton');
 
+function createPeerConnection() {
+  pc = new RTCPeerConnection(servers);
+}
+
 // 1. Setup media sources
 
 webcamButton.onclick = async () => {
   localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
   remoteStream = new MediaStream();
+
+  createPeerConnection();
 
   // Push tracks from local stream to peer connection
   localStream.getTracks().forEach((track) => {
@@ -149,4 +155,45 @@ answerButton.onclick = async () => {
       }
     });
   });
+
+  hangupButton.disabled = false;
 };
+
+//4. Hang up the call
+hangupButton.onclick = async () => {
+  const callId = callInput.value;
+  const callDoc = firestore.collection('calls').doc(callId);
+  const answerCandidates = callDoc.collection('answerCandidates');
+  const offerCandidates = callDoc.collection('offerCandidates');
+
+  if (pc) {
+    pc.close();
+    pc = null;
+  }
+
+  const deleteCollection = async (collection) => {
+    const snapshot = await collection.get();
+    snapshot.forEach(async (doc) => {
+      await doc.ref.delete();
+    });
+  };
+
+  await deleteCollection(offerCandidates)
+  await deleteCollection(answerCandidates)
+
+  await callDoc.delete();
+  
+  // Stop local tracks and reset UI
+  if (localStream) {
+    localStream.getTracks().forEach((track) => track.stop());
+    localStream = null;
+  }
+  webcamVideo.srcObject = null;
+  remoteVideo.srcObject = null;
+
+  callButton.disabled = true;
+  answerButton.disabled = true;
+  hangupButton.disabled = true;
+  webcamButton.disabled = false;
+
+}
