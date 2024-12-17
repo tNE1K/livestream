@@ -30,9 +30,12 @@ const servers = {
 // Global State
 let pc = null;
 let localStream = null;
+let screenStream = null;
+let userAudioStream = null;
 let remoteStream = null;
 
 // HTML elements
+const shareScreenButton = document.getElementById('shareScreenButton')
 const webcamButton = document.getElementById('webcamButton');
 const webcamVideo = document.getElementById('webcamVideo');
 const callButton = document.getElementById('callButton');
@@ -45,33 +48,68 @@ function createPeerConnection() {
   pc = new RTCPeerConnection(servers);
 }
 
-// 1. Setup media sources
+// // 1. Setup media sources
 
-webcamButton.onclick = async () => {
-  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-  remoteStream = new MediaStream();
+// webcamButton.onclick = async () => {
+//   localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+//   remoteStream = new MediaStream();
 
-  createPeerConnection();
+//   createPeerConnection();
 
-  // Push tracks from local stream to peer connection
-  localStream.getTracks().forEach((track) => {
-    pc.addTrack(track, localStream);
-  });
+//   // Push tracks from local stream to peer connection
+//   localStream.getTracks().forEach((track) => {
+//     pc.addTrack(track, localStream);
+//   });
 
-  // Pull tracks from remote stream, add to video stream
-  pc.ontrack = (event) => {
-    event.streams[0].getTracks().forEach((track) => {
-      remoteStream.addTrack(track);
+//   // Pull tracks from remote stream, add to video stream
+//   pc.ontrack = (event) => {
+//     event.streams[0].getTracks().forEach((track) => {
+//       remoteStream.addTrack(track);
+//     });
+//   };
+
+//   webcamVideo.srcObject = localStream;
+//   remoteVideo.srcObject = remoteStream;
+
+//   callButton.disabled = false;
+//   answerButton.disabled = false;
+//   webcamButton.disabled = true;
+// };
+
+// 2. Screen shared sources
+
+shareScreenButton.onclick = async () => {
+    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true, });
+    userAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const combinedStream = new MediaStream();
+    remoteStream = new MediaStream();
+
+    createPeerConnection();
+
+    screenStream.getTracks().forEach((track) => {
+      combinedStream.addTrack(track, screenStream);
     });
-  };
 
-  webcamVideo.srcObject = localStream;
-  remoteVideo.srcObject = remoteStream;
+    userAudioStream.getTracks().forEach((track) => {
+      combinedStream.addTrack(track, userAudioStream);
+    });
 
-  callButton.disabled = false;
-  answerButton.disabled = false;
-  webcamButton.disabled = true;
+    combinedStream.getTracks().forEach((track) => {
+      pc.addTrack(track, combinedStream);
+    });
+
+    pc.ontrack = (event) => {
+      event.streams[0].getTracks().forEach((track) => {
+        remoteStream.addTrack(track);
+      });
+    };
+    webcamVideo.srcObject = combinedStream;
+    remoteVideo.srcObject = remoteStream;
+
+    callButton.disabled = false;
+    answerButton.disabled = false;
 };
+
 
 // 2. Create an offer
 callButton.onclick = async () => {
