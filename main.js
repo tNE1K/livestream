@@ -37,16 +37,12 @@ let remoteCamStream = null;
 
 // HTML elements
 const shareScreenButton = document.getElementById('shareScreenButton')
-const webcamButton = document.getElementById('startWebcamButton');
 const webcamVideo = document.getElementById('webcamVideo');
-const localCamera = document.getElementById('localCamera');
 const callButton = document.getElementById('callButton');
 const callInput = document.getElementById('callInput');
 const answerButton = document.getElementById('answerButton');
 const remoteVideo = document.getElementById('remoteVideo');
-const remoteCamera = document.getElementById('remoteCamera');
 const hangupButton = document.getElementById('hangupButton');
-const stopCamButton = document.getElementById('stopWebcamButton')
 
 function createPeerConnection() {
   pc = new RTCPeerConnection(servers);
@@ -55,6 +51,9 @@ function createPeerConnection() {
 // 1. Screen shared sources
 
 shareScreenButton.onclick = async () => {
+
+  callButton.style.disabled = false;
+
   screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true, });
   userAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const combinedStream = new MediaStream();
@@ -84,45 +83,11 @@ shareScreenButton.onclick = async () => {
 
   callButton.disabled = false;
   answerButton.disabled = false;
-  webcamButton.disabled = false;
 };
 
-// 2. Setup media sources
-
-webcamButton.onclick = async () => {
-  localCamera.style.visibility = 'visible';
-  localCamStream = await navigator.mediaDevices.getUserMedia({ video: true});
-  remoteCamStream = new MediaStream();
-
-  // Push tracks from local stream to peer connection
-  localCamStream.getTracks().forEach((track) => {
-    pc.addTrack(track, localCamStream);
-  });
-
-  // Pull tracks from remote stream, add to video stream
-  pc.ontrack = (event) => {
-    event.streams[0].getTracks().forEach((track) => {
-      remoteCamStream.addTrack(track);
-    });
-  };
-
-  localCamera.srcObject = localCamStream;
-  remoteCamera.srcObject = remoteCamStream;
-
-  webcamButton.disabled = true;
-  stopCamButton.disabled = false;
-};
-
-//3. Stop camera button
-
-stopCamButton.onclick = async () => {
-  localCamera.style.visibility = 'hidden';
-  webcamButton.disabled = false;
-  stopCamButton.disabled = true;
-};
-
-// 4. Create an offer
+// 2. Create an offer
 callButton.onclick = async () => {
+
   // Reference Firestore collections for signaling
   const callDoc = firestore.collection('calls').doc();
   const offerCandidates = callDoc.collection('offerCandidates');
@@ -165,10 +130,12 @@ callButton.onclick = async () => {
     });
   });
 
+  answerButton.disabled = true;
+  callInput.disabled = true;
   hangupButton.disabled = false;
 };
 
-// 5. Answer the call with the unique ID
+// 3. Answer the call with the unique ID
 answerButton.onclick = async () => {
   const callId = callInput.value;
   const callDoc = firestore.collection('calls').doc(callId);
@@ -203,7 +170,7 @@ answerButton.onclick = async () => {
       }
     });
   });
-
+  callButton.disabled = true;
   hangupButton.disabled = false;
 };
 
@@ -232,10 +199,6 @@ hangupButton.onclick = async () => {
   await callDoc.delete();
   
   // Stop local tracks and reset UI
-  if (localCamStream) {
-    localCamStream.getTracks().forEach((track) => track.stop());
-    localCamStream = null;
-  }
 
   if (screenStream) {
     screenStream.getTracks().forEach((track) => track.stop());
@@ -258,7 +221,5 @@ hangupButton.onclick = async () => {
   callButton.disabled = true;
   answerButton.disabled = true;
   hangupButton.disabled = true;
-  webcamButton.disabled = true;
-  stopCamButton.disabled = true;
   callInput.value = "";
 }
